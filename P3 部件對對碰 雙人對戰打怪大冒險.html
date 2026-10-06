@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>P3 部件對對碰 雙人對戰打怪大冒險 - 電子白板 16:9 版</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700;800&family=Noto+Sans+TC:wght@600;800;900&display=swap" rel="stylesheet">
+  
+  <style>
+    * {
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: manipulation;
+    }
+    body {
+      font-family: 'Noto Sans TC', 'Chakra Petch', sans-serif;
+      background-color: #06030c;
+      color: #f3e8ff;
+      overflow: hidden;
+    }
+    .rpg-card {
+      background: rgba(18, 10, 31, 0.92);
+      border: 3px solid #6d28d9;
+      box-shadow: 0 0 20px rgba(124, 58, 237, 0.3), inset 0 0 15px rgba(124, 58, 237, 0.15);
+      backdrop-filter: blur(8px);
+    }
+    .rpg-btn {
+      background: linear-gradient(180deg, #4c1d95 0%, #2e1065 100%);
+      border: 3px solid #a855f7;
+      box-shadow: 0 6px 0 #1e1b4b, 0 8px 15px rgba(0,0,0,0.5);
+      transition: all 0.1s ease;
+    }
+    .rpg-btn:active, .rpg-btn.selected {
+      transform: translateY(4px);
+      box-shadow: 0 2px 0 #1e1b4b, 0 4px 10px rgba(168, 85, 247, 0.6);
+      background: linear-gradient(180deg, #7e22ce 0%, #581c87 100%);
+      border-color: #f0abfc;
+    }
+    .rpg-btn-action {
+      background: linear-gradient(180deg, #15803d 0%, #166534 100%);
+      border: 3px solid #4ade80;
+      box-shadow: 0 6px 0 #052e16, 0 8px 15px rgba(0,0,0,0.5);
+    }
+    .rpg-btn-action:active {
+      transform: translateY(4px);
+      box-shadow: 0 2px 0 #052e16;
+    }
+    .rpg-btn-cancel {
+      background: linear-gradient(180deg, #b91c1c 0%, #991b1b 100%);
+      border: 3px solid #f87171;
+      box-shadow: 0 6px 0 #450a0a, 0 8px 15px rgba(0,0,0,0.5);
+    }
+    .rpg-btn-cancel:active {
+      transform: translateY(4px);
+      box-shadow: 0 2px 0 #450a0a;
+    }
+    .hp-bar-fill {
+      transition: width 0.4s ease-out;
+    }
+    @keyframes monsterHit {
+      0% { transform: scale(1) rotate(0deg); filter: brightness(1); }
+      20% { transform: scale(0.85) rotate(-6deg); filter: brightness(3) sepia(1) hue-rotate(-50deg); }
+      40% { transform: scale(1.15) rotate(6deg); filter: brightness(2); }
+      100% { transform: scale(1) rotate(0deg); filter: brightness(1); }
+    }
+    .animate-hit {
+      animation: monsterHit 0.45s ease-in-out;
+    }
+    @keyframes floatDamage {
+      0% { opacity: 1; transform: translateY(0) scale(0.8); }
+      50% { opacity: 1; transform: translateY(-40px) scale(1.3); }
+      100% { opacity: 0; transform: translateY(-80px) scale(1); }
+    }
+    .damage-num {
+      position: absolute;
+      animation: floatDamage 0.8s forwards ease-out;
+      pointer-events: none;
+      font-weight: 900;
+      text-shadow: 0 0 10px #000, 3px 3px 0 #000;
+    }
+  </style>
+</head>
+<body class="w-screen h-screen flex flex-col justify-between p-2 select-none">
+
+  <!-- 頂部功能列 -->
+  <header class="flex justify-between items-center px-4 py-2 bg-slate-900/80 border-b-2 border-purple-500 rounded-xl h-[8vh]">
+    <div class="flex items-center gap-3">
+      <span class="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-purple-300 to-pink-400">
+        ⚔️ 部首對對碰！雙人打怪大冒險 🧙‍♂️
+      </span>
+    </div>
+    <div class="flex items-center gap-3">
+      <button id="btn-edit-q" onclick="openQuestionModal()" class="px-3 py-1.5 bg-emerald-950 border border-emerald-400 rounded-lg text-sm font-bold text-emerald-200 hover:bg-emerald-800 transition-colors cursor-pointer">
+        ✏️ 編輯/更新題庫
+      </button>
+      <button id="btn-sound" onclick="toggleSound()" class="px-3 py-1.5 bg-purple-950 border border-purple-400 rounded-lg text-sm font-bold text-purple-200 hover:bg-purple-800 cursor-pointer">
+        🔊 音效: 開
+      </button>
+      <button id="btn-fullscreen" onclick="toggleFullScreen()" class="px-3 py-1.5 bg-blue-950 border border-blue-400 rounded-lg text-sm font-bold text-blue-200 hover:bg-blue-800 cursor-pointer">
+        ⛶ 全屏顯示
+      </button>
+    </div>
+  </header>
+
+  <!-- 主遊戲畫面 (16:9 左右分屏) -->
+  <main id="game-screen" class="flex-1 grid grid-cols-2 gap-3 p-1 h-[90vh]">
+    
+    <!-- P1 騎士邊 (左) -->
+    <div class="rpg-card rounded-2xl p-3 flex flex-col justify-between relative overflow-hidden">
+      <!-- 玩家與怪獸狀態 -->
+      <div class="space-y-2">
+        <div class="flex justify-between items-center bg-slate-950/70 p-2 rounded-xl border border-purple-900">
+          <div class="flex items-center gap-2">
+            <span class="text-3xl">🛡️</span>
+            <div>
+              <div class="text-xs text-purple-300 font-bold">P1 聖騎士</div>
+              <div class="w-32 bg-slate-800 h-4 rounded-full border border-slate-600 overflow-hidden">
+                <div id="p1-hp-bar" class="hp-bar-fill bg-gradient-to-r from-green-500 to-emerald-400 h-full w-full"></div>
+              </div>
+            </div>
+          </div>
+          <div class="text-right">
+            <div class="text-xs text-amber-400 font-bold">分數: <span id="p1-score" class="text-base text-white">0</span></div>
+            <div class="text-xs text-pink-400 font-bold">Combo: <span id="p1-combo" class="text-base text-white">0</span></div>
+          </div>
+        </div>
+
+        <!-- 怪獸區 -->
+        <div class="relative flex items-center justify-between bg-slate-900/60 p-2 rounded-xl border border-red-900/50">
+          <div class="flex-1 pr-3">
+            <div class="flex justify-between text-xs text-red-300 mb-1 font-bold">
+              <span id="p1-monster-name">👾 綠泥怪</span>
+              <span id="p1-monster-hp-text">80/80</span>
+            </div>
+            <div class="w-full bg-slate-800 h-3.5 rounded-full border border-slate-600 overflow-hidden">
+              <div id="p1-monster-hp-bar" class="hp-bar-fill bg-gradient-to-r from-red-600 to-amber-500 h-full w-full"></div>
+            </div>
+          </div>
+          <div id="p1-monster-sprite" class="text-5xl transition-transform duration-200 select-none">
+            👾
+          </div>
+          <div id="p1-dmg-layer"></div>
+        </div>
+      </div>
+
+      <!-- 題目區 -->
+      <div class="my-auto py-2 text-center bg-purple-950/40 rounded-xl border border-purple-800/60 min-h-[110px] flex flex-col justify-center">
+        <div id="p1-question-text" class="text-3xl font-black text-amber-200 tracking-wider">
+          載入中...
+        </div>
+        <div class="text-xs text-purple-300 mt-2">請點選正確的偏旁/部首組合漢字！</div>
+      </div>
+
+      <!-- 選擇與操作按鍵區 -->
+      <div class="space-y-2">
+        <div id="p1-options" class="grid grid-cols-4 gap-2">
+          <!-- 選項按鈕動態生成 -->
+        </div>
+
+        <div class="grid grid-cols-2 gap-3 pt-1">
+          <button onclick="cancelSelection(0)" class="rpg-btn-cancel text-white font-black py-2.5 rounded-xl text-xl flex items-center justify-center gap-1 cursor-pointer">
+            ✖ 取消
+          </button>
+          <button onclick="submitAnswer(0)" class="rpg-btn-action text-white font-black py-2.5 rounded-xl text-xl flex items-center justify-center gap-1 cursor-pointer">
+            ✔ 提交
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- P2 法師邊 (右) -->
+    <div class="rpg-card rounded-2xl p-3 flex flex-col justify-between relative overflow-hidden">
+      <!-- 玩家與怪獸狀態 -->
+      <div class="space-y-2">
+        <div class="flex justify-between items-center bg-slate-950/70 p-2 rounded-xl border border-purple-900">
+          <div class="flex items-center gap-2">
+            <span class="text-3xl">🧙‍♂️</span>
+            <div>
+              <div class="text-xs text-cyan-300 font-bold">P2 元素法師</div>
+              <div class="w-32 bg-slate-800 h-4 rounded-full border border-slate-600 overflow-hidden">
+                <div id="p2-hp-bar" class="hp-bar-fill bg-gradient-to-r from-green-500 to-emerald-400 h-full w-full"></div>
+              </div>
+            </div>
+          </div>
+          <div class="text-right">
+            <div class="text-xs text-amber-400 font-bold">分數: <span id="p2-score" class="text-base text-white">0</span></div>
+            <div class="text-xs text-pink-400 font-bold">Combo: <span id="p2-combo" class="text-base text-white">0</span></div>
+          </div>
+        </div>
+
+        <!-- 怪獸區 -->
+        <div class="relative flex items-center justify-between bg-slate-900/60 p-2 rounded-xl border border-red-900/50">
+          <div class="flex-1 pr-3">
+            <div class="flex justify-between text-xs text-red-300 mb-1 font-bold">
+              <span id="p2-monster-name">👾 綠泥怪</span>
+              <span id="p2-monster-hp-text">80/80</span>
+            </div>
+            <div class="w-full bg-slate-800 h-3.5 rounded-full border border-slate-600 overflow-hidden">
+              <div id="p2-monster-hp-bar" class="hp-bar-fill bg-gradient-to-r from-red-600 to-amber-500 h-full w-full"></div>
+            </div>
+          </div>
+          <div id="p2-monster-sprite" class="text-5xl transition-transform duration-200 select-none">
+            👾
+          </div>
+          <div id="p2-dmg-layer"></div>
+        </div>
+      </div>
+
+      <!-- 題目區 -->
+      <div class="my-auto py-2 text-center bg-purple-950/40 rounded-xl border border-purple-800/60 min-h-[110px] flex flex-col justify-center">
+        <div id="p2-question-text" class="text-3xl font-black text-amber-200 tracking-wider">
+          載入中...
+        </div>
+        <div class="text-xs text-purple-300 mt-2">請點選正確的偏旁/部首組合漢字！</div>
+      </div>
+
+      <!-- 選擇與操作按鍵區 -->
+      <div class="space-y-2">
+        <div id="p2-options" class="grid grid-cols-4 gap-2">
+          <!-- 選項按鈕動態生成 -->
+        </div>
+
+        <div class="grid grid-cols-2 gap-3 pt-1">
+          <button onclick="cancelSelection(1)" class="rpg-btn-cancel text-white font-black py-2.5 rounded-xl text-xl flex items-center justify-center gap-1 cursor-pointer">
+            ✖ 取消
+          </button>
+          <button onclick="submitAnswer(1)" class="rpg-btn-action text-white font-black py-2.5 rounded-xl text-xl flex items-center justify-center gap-1 cursor-pointer">
+            ✔ 提交
+          </button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- 開始畫面 Overlay -->
+  <div id="start-overlay" class="fixed inset-0 bg-slate-950/95 backdrop-blur-md flex flex-col items-center justify-center z-50 p-6">
+    <div class="max-w-3xl text-center space-y-6">
+      <h1 class="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-purple-300 to-pink-400 tracking-wider">
+        ⚔️ 部首對對碰！雙人打怪大冒險 🧙‍♂️
+      </h1>
+      <p class="text-xl text-purple-200 leading-relaxed font-bold">
+        適合電子白板全屏遊玩！選擇正確的部首或部件組合漢字，發動招式擊敗怪物！
+      </p>
+
+      <div class="grid grid-cols-2 gap-4 text-left bg-purple-950/50 p-4 rounded-2xl border border-purple-700">
+        <div class="space-y-2">
+          <div class="text-amber-300 font-bold text-lg">🎮 操作流程：</div>
+          <ul class="text-sm space-y-1 text-purple-200">
+            <li>1. 點擊畫面上的部首/部件按鈕。</li>
+            <li>2. 選項會即時填入題目中的空格 <span class="text-amber-300 font-bold font-mono">_</span>。</li>
+            <li>3. 可按<span class="text-red-400 font-bold">「取消」</span>重選，按<span class="text-green-400 font-bold">「提交」</span>攻擊怪物。</li>
+          </ul>
+        </div>
+        <div class="space-y-2">
+          <div class="text-amber-300 font-bold text-lg">⚡ 戰鬥與獎勵規則：</div>
+          <ul class="text-sm space-y-1 text-purple-200">
+            <li>• 怪物血量：總生命力 150。</li>
+            <li>• 答對 1 題：扣除怪物 5 點生命力。</li>
+            <li>• 連對 3 題 (Combo x3)：觸發爆擊，扣除 20 點生命力！</li>
+          </ul>
+        </div>
+      </div>
+
+      <button onclick="startGame()" class="px-10 py-4 rpg-btn-action text-white text-3xl font-black rounded-2xl shadow-2xl hover:scale-105 transition-transform cursor-pointer">
+        ⚔️ 開始對戰打怪！
+      </button>
+    </div>
+  </div>
+
+  <!-- 結算畫面 Overlay -->
+  <div id="result-overlay" class="hidden fixed inset-0 bg-slate-950/95 backdrop-blur-md flex flex-col items-center justify-center z-50 p-6">
+    <div class="max-w-3xl w-full bg-slate-900 border-4 border-purple-500 rounded-3xl p-6 text-center space-y-6 shadow-2xl">
+      <h2 id="result-title" class="text-4xl font-black text-amber-300">🎉 戰鬥結束！結算成績</h2>
+
+      <div class="grid grid-cols-2 gap-4">
+        <!-- P1 戰績 -->
+        <div class="bg-purple-950/60 p-4 rounded-2xl border border-purple-700 text-left space-y-2">
+          <div class="text-xl font-bold text-purple-300 border-b border-purple-800 pb-1">🛡️ P1 聖騎士</div>
+          <div class="text-sm text-slate-200">最終分數：<span id="p1-res-score" class="text-amber-300 font-bold text-lg">0</span></div>
+          <div class="text-sm text-slate-200">答對題數：<span id="p1-res-correct" class="text-green-400 font-bold text-lg">0</span></div>
+          <div class="text-sm text-slate-200">答錯題數：<span id="p1-res-wrong" class="text-red-400 font-bold text-lg">0</span></div>
+          <div class="text-sm text-slate-200">擊敗怪獸：<span id="p1-res-monsters" class="text-cyan-300 font-bold text-lg">0</span> 隻</div>
+        </div>
+
+        <!-- P2 戰績 -->
+        <div class="bg-purple-950/60 p-4 rounded-2xl border border-purple-700 text-left space-y-2">
+          <div class="text-xl font-bold text-cyan-300 border-b border-purple-800 pb-1">🧙‍♂️ P2 元素法師</div>
+          <div class="text-sm text-slate-200">最終分數：<span id="p2-res-score" class="text-amber-300 font-bold text-lg">0</span></div>
+          <div class="text-sm text-slate-200">答對題數：<span id="p2-res-correct" class="text-green-400 font-bold text-lg">0</span></div>
+          <div class="text-sm text-slate-200">答錯題數：<span id="p2-res-wrong" class="text-red-400 font-bold text-lg">0</span></div>
+          <div class="text-sm text-slate-200">擊敗怪獸：<span id="p2-res-monsters" class="text-cyan-300 font-bold text-lg">0</span> 隻</div>
+        </div>
+      </div>
+
+      <button onclick="restartGame()" class="px-8 py-3 rpg-btn-action text-white text-2xl font-black rounded-xl cursor-pointer">
+        🔄 再次挑戰！
+      </button>
+    </div>
+  </div>
+
+  <!-- 編輯題庫 Modal -->
+  <div id="custom-q-modal" class="hidden fixed inset-0 bg-slate-950/95 backdrop-blur-md flex flex-col items-center justify-center z-50 p-6">
+    <div class="max-w-4xl w-full bg-slate-900 border-4 border-purple-500 rounded-3xl p-6 flex flex-col gap-4 shadow-2xl max-h-[90vh]">
+      <div class="flex justify-between items-center border-b border-purple-800 pb-3">
+        <h2 class="text-2xl font-black text-amber-300">✏ 編輯與更新題庫 (可修改 15 詞共 30 題)</h2>
+        <button onclick="closeQuestionModal()" class="text-slate-400 hover:text-white text-2xl font-bold px-2 cursor-pointer">✖</button>
+      </div>
+
+      <div id="modal-toast" class="hidden p-2 rounded-lg text-center text-sm font-bold"></div>
+
+      <p class="text-xs text-purple-300 leading-relaxed">
+        您可以直接在下方修改 JSON 格式題目（包含 <span class="text-amber-300 font-mono">template</span> 題目模板、<span class="text-amber-300 font-mono">answer</span> 正確答案與 <span class="text-amber-300 font-mono">options</span> 四個選項）：
+      </p>
+
+      <textarea id="custom-q-json" class="w-full h-80 bg-slate-950 border border-purple-700 rounded-xl p-3 text-emerald-400 font-mono text-sm leading-relaxed focus:outline-none focus:border-amber-400 resize-none"></textarea>
+
+      <div class="flex justify-between items-center pt-2 border-t border-purple-800">
+        <button onclick="loadDefaultQuestionsToEditor()" class="px-4 py-2 bg-slate-800 border border-slate-600 rounded-xl text-sm font-bold text-slate-200 hover:bg-slate-700 cursor-pointer">
+          🔄 重設為範例題目
+        </button>
+        <div class="flex gap-3">
+          <button onclick="closeQuestionModal()" class="rpg-btn-cancel text-white font-bold px-6 py-2 rounded-xl text-base cursor-pointer">
+            取消
+          </button>
+          <button onclick="saveCustomQuestions()" class="rpg-btn-action text-white font-bold px-6 py-2 rounded-xl text-base cursor-pointer">
+            💾 儲存並更新遊戲
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 全域變數定義
+    let soundEnabled = true;
+    let AudioCtx = window.AudioContext || window.webkitAudioContext;
+    let audioCtx = null;
+    let players = [];
+
+    // 單一怪獸（生命力 150）
+    const monsterList = [
+      { name: "👾 巨型大怪獸", maxHp: 150, sprite: "👾" }
+    ];
+
+    // 預設 15 詞共 30 題庫
+    const defaultQuestionBank = [
+            // 1. 活動
+      { template: "重 + _ = 動", answer: "力", options: ["力", "手", "口", "心"] },
+      { template: "_ + 力 = 動", answer: "重", options: ["重", "童", "東", "車"] },
+
+      // 2. 收集
+      { template: "_ + 木 = 集", answer: "隹", options: ["隹", "頁", "羽", "日"] },
+      { template: "隹 + _ = 集", answer: "木", options: ["木", "林", "本", "禾"] },
+
+      // 3. 拆開
+      { template: "_ + 斥 = 拆", answer: "扌", options: ["扌", "升", "井", "干"] },
+      { template: "扌 + _ = 拆", answer: "斥", options: ["斥", "并", "平", "天"] },
+
+      // 4. 參加
+      { template: "_ + 口 = 加", answer: "力", options: ["力", "刀", "九", "方"] },
+      { template: "力 + _ = 加", answer: "口", options: ["口", "日", "目", "言"] },
+
+      // 5. 喜歡
+      { template: "_ + 欠 = 歡", answer: "雚", options: ["雚", "觀", "罐", "歡"] },
+      { template: "雚 + _ = 歡", answer: "欠", options: ["欠", "人", "又", "心"] },
+
+      // 6. 希望
+      { template: "_ + 布 = 希", answer: "乂", options: ["爻", "乂", "父", "文"] },
+      { template: "乂 + _ = 希", answer: "布", options: ["布", "巾", "市", "巾"] },
+
+      // 7. 認識
+      { template: "_ + 戠 = 識", answer: "言", options: ["言", "口", "日", "立"] },
+      { template: "言 + _ = 識", answer: "戠", options: ["戠", "職", "織", "幟"] },
+
+      // 8. 直接
+      { template: "_ + 妾 = 接", answer: "扌", options: ["扌", "手", "木", "氵"] },
+      { template: "扌 + _ = 接", answer: "妾", options: ["妾", "立", "女", "日"] },
+
+      // 9. 回報
+      { template: "_ + 𠬝 = 報", answer: "幸", options: ["幸", "執", "達", "辛"] },
+      { template: "幸 + _ = 報", answer: "𠬝 ", options: ["卩", "又", "𠬝 ", "力"] },
+
+      // 10. 熱情
+      { template: "_ + 青 = 情", answer: "忄", options: ["忄", "手", "口", "足"] },
+      { template: "忄 + _ = 情", answer: "青", options: ["青", "爭", "正", "生"] },
+
+      // 11. 有趣
+      { template: "_ + 取 = 趣", answer: "走", options: ["走", "足", "身", "彳"] },
+      { template: "走 + _ = 趣", answer: "取", options: ["取", "耳", "又", "敢"] },
+
+      // 12. 應該
+      { template: "_ + 亥 = 該", answer: "言", options: ["言", "氵", "亻", "木"] },
+      { template: "言 + _ = 該", answer: "亥", options: ["亥", "刻", "孩", "豕"] },
+
+      // 13. 包括
+      { template: "_ + 巳 = 包", answer: "勹", options: ["勹", "力", "刀", "厶"] },
+      { template: "勹 + _ = 包", answer: "巳", options: ["巳", "已", "己", "口"] },
+
+      // 14. 總共
+      { template: "_ + 悤 = 總", answer: "糸", options: ["糸", "絞", "纟", "巾"] },
+      { template: "糸 + _ = 總", answer: "悤", options: ["怱", "匆", "悤", "聰"] },
+
+      // 15. 心得
+      { template: "_ + 㝵 = 得", answer: "彳", options: ["彳", "亻", "氵", "走"] },
+      { template: "彳 + _ = 得", answer: "㝵", options: ["㝵", "旦", "寸", "木"] }
+    ];
+
+    let questionBank = [...defaultQuestionBank];
+
+    function playSound(type) {
+      if (!soundEnabled) return;
+      try {
+        if (!audioCtx) audioCtx = new AudioCtx();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        const now = audioCtx.currentTime;
+
+        if (type === 'tap') {
+          osc.frequency.setValueAtTime(400, now);
+          osc.frequency.exponentialRampToValueAtTime(800, now + 0.05);
+          gain.gain.setValueAtTime(0.2, now);
+          gain.gain.exponentialRampToValueAtTime(0.01, now + 0.05);
+          osc.start(now);
+          osc.stop(now + 0.05);
+        } else if (type === 'correct') {
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(523.25, now);
+          osc.frequency.setValueAtTime(659.25, now + 0.08);
+          osc.frequency.setValueAtTime(783.99, now + 0.16);
+          gain.gain.setValueAtTime(0.3, now);
+          gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+          osc.start(now);
+          osc.stop(now + 0.3);
+        } else if (type === 'wrong') {
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(180, now);
+          osc.frequency.setValueAtTime(130, now + 0.15);
+          gain.gain.setValueAtTime(0.3, now);
+          gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+          osc.start(now);
+          osc.stop(now + 0.3);
+        } else if (type === 'heal') {
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(300, now);
+          osc.frequency.exponentialRampToValueAtTime(900, now + 0.25);
+          gain.gain.setValueAtTime(0.3, now);
+          gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
+          osc.start(now);
+          osc.stop(now + 0.25);
+        }
+      } catch (e) {
+        console.warn('Audio play error:', e);
+      }
+    }
+
+    function shuffleArray(array) {
+      const arr = [...array];
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+
+    function startGame() {
+      document.getElementById('start-overlay').classList.add('hidden');
+      restartGame();
+    }
+
+    function restartGame() {
+      document.getElementById('result-overlay').classList.add('hidden');
+      
+      players = [
+        { hp: 100, score: 0, combo: 0, correctCount: 0, wrongCount: 0, monstersDefeated: 0, monsterIdx: 0, monsterHp: monsterList[0].maxHp, currentQIdx: 0, selectedOption: null, questions: shuffleArray(questionBank) },
+        { hp: 100, score: 0, combo: 0, correctCount: 0, wrongCount: 0, monstersDefeated: 0, monsterIdx: 0, monsterHp: monsterList[0].maxHp, currentQIdx: 0, selectedOption: null, questions: shuffleArray(questionBank) }
+      ];
+
+      updateUI(0);
+      updateUI(1);
+    }
+
+    function renderQuestion(pIdx) {
+      const p = players[pIdx];
+      const q = p.questions[p.currentQIdx];
+      const qTextElem = document.getElementById(`p${pIdx + 1}-question-text`);
+      
+      let displayTemplate = q.template;
+      if (p.selectedOption) {
+        displayTemplate = displayTemplate.replace('_', `<span class="underline text-amber-400 font-bold px-1">${p.selectedOption}</span>`);
+      } else {
+        displayTemplate = displayTemplate.replace('_', '<span class="underline text-purple-400 px-1">_</span>');
+      }
+      qTextElem.innerHTML = displayTemplate;
+
+      const optionsContainer = document.getElementById(`p${pIdx + 1}-options`);
+      optionsContainer.innerHTML = '';
+      
+      const currentOpts = q.options;
+
+      currentOpts.forEach(opt => {
+        const btn = document.createElement('button');
+        btn.className = `rpg-btn text-white text-3xl font-black py-3 rounded-xl cursor-pointer ${p.selectedOption === opt ? 'selected' : ''}`;
+        btn.innerText = opt;
+        btn.onclick = () => selectOption(pIdx, opt);
+        optionsContainer.appendChild(btn);
+      });
+    }
+
+    function selectOption(pIdx, option) {
+      playSound('tap');
+      players[pIdx].selectedOption = option;
+      renderQuestion(pIdx);
+    }
+
+    function cancelSelection(pIdx) {
+      playSound('tap');
+      players[pIdx].selectedOption = null;
+      renderQuestion(pIdx);
+    }
+
+    function submitAnswer(pIdx) {
+      const p = players[pIdx];
+      if (!p.selectedOption) return;
+
+      const q = p.questions[p.currentQIdx];
+      const isCorrect = (p.selectedOption === q.answer);
+
+      if (isCorrect) {
+        playSound('correct');
+        p.correctCount++;
+        p.combo++;
+        let dmg = 5;
+
+        // 連對 3 題觸發爆擊扣 20 生命力
+        if (p.combo % 3 === 0) {
+          p.hp = Math.min(100, p.hp + 10);
+          dmg = 20;
+          playSound('heal');
+          showDamage(pIdx, "💥 爆擊 -20!", "text-amber-300 font-extrabold");
+        } else {
+          showDamage(pIdx, "-5", "text-amber-400");
+        }
+
+        p.score += 100 * p.combo;
+        p.monsterHp = Math.max(0, p.monsterHp - dmg);
+        triggerMonsterHit(pIdx);
+
+        // 擊敗 150 HP 怪物即結算勝負
+        if (p.monsterHp <= 0) {
+          p.monstersDefeated = 1;
+          endGame();
+          return;
+        }
+
+      } else {
+        playSound('wrong');
+        p.wrongCount++;
+        p.combo = 0;
+        p.hp = Math.max(0, p.hp - 15);
+        showDamage(pIdx, `-15 HP`, "text-red-500");
+
+        if (p.hp <= 0) {
+          endGame();
+          return;
+        }
+      }
+
+      p.selectedOption = null;
+      p.currentQIdx = (p.currentQIdx + 1) % p.questions.length;
+      updateUI(pIdx);
+    }
+
+    function triggerMonsterHit(pIdx) {
+      const sprite = document.getElementById(`p${pIdx + 1}-monster-sprite`);
+      sprite.classList.remove('animate-hit');
+      void sprite.offsetWidth;
+      sprite.classList.add('animate-hit');
+    }
+
+    function showDamage(pIdx, text, colorClass) {
+      const layer = document.getElementById(`p${pIdx + 1}-dmg-layer`);
+      const dmg = document.createElement('div');
+      dmg.className = `damage-num text-3xl ${colorClass}`;
+      dmg.innerText = text;
+      dmg.style.left = `${Math.random() * 40 + 30}%`;
+      dmg.style.top = `20%`;
+      layer.appendChild(dmg);
+      setTimeout(() => dmg.remove(), 800);
+    }
+
+    function updateUI(pIdx) {
+      const p = players[pIdx];
+      const pNum = pIdx + 1;
+
+      document.getElementById(`p${pNum}-score`).innerText = p.score;
+      document.getElementById(`p${pNum}-combo`).innerText = p.combo;
+      document.getElementById(`p${pNum}-hp-bar`).style.width = `${p.hp}%`;
+
+      const m = monsterList[p.monsterIdx];
+      document.getElementById(`p${pNum}-monster-name`).innerText = m.name;
+      document.getElementById(`p${pNum}-monster-sprite`).innerText = m.sprite;
+      document.getElementById(`p${pNum}-monster-hp-text`).innerText = `${p.monsterHp}/${m.maxHp}`;
+      document.getElementById(`p${pNum}-monster-hp-bar`).style.width = `${(p.monsterHp / m.maxHp) * 100}%`;
+
+      renderQuestion(pIdx);
+    }
+
+    function endGame() {
+      document.getElementById('result-overlay').classList.remove('hidden');
+
+      for (let i = 0; i < 2; i++) {
+        const p = players[i];
+        const pNum = i + 1;
+        document.getElementById(`p${pNum}-res-score`).innerText = p.score;
+        document.getElementById(`p${pNum}-res-correct`).innerText = p.correctCount;
+        document.getElementById(`p${pNum}-res-wrong`).innerText = p.wrongCount;
+        document.getElementById(`p${pNum}-res-monsters`).innerText = p.monstersDefeated;
+      }
+    }
+
+    function toggleSound() {
+      soundEnabled = !soundEnabled;
+      document.getElementById('btn-sound').innerText = `🔊 音效: ${soundEnabled ? '開' : '關'}`;
+    }
+
+    function toggleFullScreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(() => {});
+      } else {
+        if (document.exitFullscreen) document.exitFullscreen();
+      }
+    }
+
+    function openQuestionModal() {
+      document.getElementById('custom-q-json').value = JSON.stringify(questionBank, null, 2);
+      document.getElementById('modal-toast').classList.add('hidden');
+      document.getElementById('custom-q-modal').classList.remove('hidden');
+    }
+
+    function closeQuestionModal() {
+      document.getElementById('custom-q-modal').classList.add('hidden');
+    }
+
+    function loadDefaultQuestionsToEditor() {
+      document.getElementById('custom-q-json').value = JSON.stringify(defaultQuestionBank, null, 2);
+      showModalToast('已恢復預設範例題目！', 'bg-blue-900/80 text-blue-200');
+    }
+
+    function showModalToast(msg, colorClass) {
+      const toast = document.getElementById('modal-toast');
+      toast.className = `p-2 rounded-lg text-center text-sm font-bold ${colorClass}`;
+      toast.innerText = msg;
+      toast.classList.remove('hidden');
+    }
+
+    function saveCustomQuestions() {
+      try {
+        const inputVal = document.getElementById('custom-q-json').value;
+        const parsed = JSON.parse(inputVal);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          questionBank = parsed;
+          showModalToast(`✅ 題庫更新成功！共 ${questionBank.length} 道題目，即將重新開始遊戲...`, 'bg-green-900/80 text-green-200');
+          setTimeout(() => {
+            closeQuestionModal();
+            restartGame();
+          }, 1200);
+        } else {
+          showModalToast('⚠️ 格式錯誤：題目必須是非空的 JSON 陣列 (Array)。', 'bg-red-900/80 text-red-200');
+        }
+      } catch (e) {
+        showModalToast('⚠️ JSON 格式有誤，請檢查括號或逗號是否正確！', 'bg-red-900/80 text-red-200');
+      }
+    }
+
+    // 綁定所有函式至全域 window，確保所有按鈕點擊順暢執行
+    window.startGame = startGame;
+    window.restartGame = restartGame;
+    window.selectOption = selectOption;
+    window.cancelSelection = cancelSelection;
+    window.submitAnswer = submitAnswer;
+    window.toggleSound = toggleSound;
+    window.toggleFullScreen = toggleFullScreen;
+    window.openQuestionModal = openQuestionModal;
+    window.closeQuestionModal = closeQuestionModal;
+    window.loadDefaultQuestionsToEditor = loadDefaultQuestionsToEditor;
+    window.saveCustomQuestions = saveCustomQuestions;
+  </script>
+</body>
+</html>
