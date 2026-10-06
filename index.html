@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>P3 部件對對碰 雙人對戰打怪大冒險 - 電子白板 16:9 版</title>
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -13,13 +13,74 @@
     * {
       user-select: none;
       -webkit-user-select: none;
-      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      box-sizing: border-box;
     }
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: var(--app-height, 100dvh);
+      max-height: var(--app-height, 100dvh);
+      overflow: hidden;
+      overscroll-behavior: none;
+      background-color: #06030c;
+    }
+
     body {
       font-family: 'Noto Sans TC', 'Chakra Petch', sans-serif;
-      background-color: #06030c;
       color: #f3e8ff;
+      padding-top: max(0.5rem, env(safe-area-inset-top));
+      padding-right: max(0.5rem, env(safe-area-inset-right));
+      padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+      padding-left: max(0.5rem, env(safe-area-inset-left));
+    }
+
+    /* 遊戲區：禁止拖曳、滑動與雙指縮放 */
+    header,
+    #game-screen,
+    #start-overlay,
+    #result-overlay {
+      touch-action: none;
+    }
+
+    /* 題庫編輯器：保留文字選取與垂直捲動 */
+    #custom-q-modal {
+      touch-action: auto;
+      overscroll-behavior: contain;
+    }
+
+    #custom-q-json {
+      user-select: text;
+      -webkit-user-select: text;
+      touch-action: pan-y;
+      overscroll-behavior: contain;
+    }
+
+    /* iPad / 平板尺寸自適應 */
+    #game-screen {
+      min-height: 0;
       overflow: hidden;
+    }
+
+    @media (max-height: 760px) {
+      header {
+        padding-top: 0.25rem !important;
+        padding-bottom: 0.25rem !important;
+      }
+      #game-screen {
+        gap: 0.5rem !important;
+      }
+      .rpg-card {
+        padding: 0.5rem !important;
+      }
+      #p1-question-text, #p2-question-text {
+        font-size: clamp(1.35rem, 3.2vh, 1.875rem) !important;
+      }
+      #p1-options button, #p2-options button {
+        font-size: clamp(1.35rem, 3.6vh, 1.875rem) !important;
+        padding-top: 0.5rem !important;
+        padding-bottom: 0.5rem !important;
+      }
     }
     .rpg-card {
       background: rgba(18, 10, 31, 0.92);
@@ -83,10 +144,10 @@
     }
   </style>
 </head>
-<body class="w-screen h-screen flex flex-col justify-between p-2 select-none">
+<body class="w-screen flex flex-col justify-between select-none">
 
   <!-- 頂部功能列 -->
-  <header class="flex justify-between items-center px-4 py-2 bg-slate-900/80 border-b-2 border-purple-500 rounded-xl h-[8vh]">
+  <header class="flex-none flex justify-between items-center px-4 py-2 bg-slate-900/80 border-b-2 border-purple-500 rounded-xl">
     <div class="flex items-center gap-3">
       <span class="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-purple-300 to-pink-400">
         ⚔️ 部首對對碰！雙人打怪大冒險 🧙‍♂️
@@ -106,7 +167,7 @@
   </header>
 
   <!-- 主遊戲畫面 (16:9 左右分屏) -->
-  <main id="game-screen" class="flex-1 grid grid-cols-2 gap-3 p-1 h-[90vh]">
+  <main id="game-screen" class="flex-1 min-h-0 grid grid-cols-2 gap-3 p-1">
     
     <!-- P1 騎士邊 (左) -->
     <div class="rpg-card rounded-2xl p-3 flex flex-col justify-between relative overflow-hidden">
@@ -303,7 +364,7 @@
 
   <!-- 編輯題庫 Modal -->
   <div id="custom-q-modal" class="hidden fixed inset-0 bg-slate-950/95 backdrop-blur-md flex flex-col items-center justify-center z-50 p-6">
-    <div class="max-w-4xl w-full bg-slate-900 border-4 border-purple-500 rounded-3xl p-6 flex flex-col gap-4 shadow-2xl max-h-[90vh]">
+    <div class="max-w-4xl w-full bg-slate-900 border-4 border-purple-500 rounded-3xl p-6 flex flex-col gap-4 shadow-2xl max-h-[90dvh]">
       <div class="flex justify-between items-center border-b border-purple-800 pb-3">
         <h2 class="text-2xl font-black text-amber-300">✏ 編輯與更新題庫 (可修改 15 詞共 30 題)</h2>
         <button onclick="closeQuestionModal()" class="text-slate-400 hover:text-white text-2xl font-bold px-2 cursor-pointer">✖</button>
@@ -679,6 +740,45 @@
         showModalToast('⚠️ JSON 格式有誤，請檢查括號或逗號是否正確！', 'bg-red-900/80 text-red-200');
       }
     }
+
+    // ========================================
+    // iPad / iPhone：可視高度自動貼合 + 遊戲觸控鎖定
+    // ========================================
+    function updateAppHeight() {
+      const height = window.visualViewport
+        ? window.visualViewport.height
+        : window.innerHeight;
+
+      document.documentElement.style.setProperty('--app-height', `${height}px`);
+    }
+
+    updateAppHeight();
+    window.addEventListener('resize', updateAppHeight, { passive: true });
+    window.addEventListener('orientationchange', () => {
+      setTimeout(updateAppHeight, 100);
+    }, { passive: true });
+
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', updateAppHeight, { passive: true });
+    }
+
+    function isQuestionEditorTarget(target) {
+      return target && target.closest && target.closest('#custom-q-modal');
+    }
+
+    // 禁止遊戲畫面單指拖動 / 捲頁；題庫編輯器除外
+    document.addEventListener('touchmove', function (e) {
+      if (isQuestionEditorTarget(e.target)) return;
+      e.preventDefault();
+    }, { passive: false });
+
+    // iPadOS Safari / Chrome 的 pinch gesture 保險鎖
+    ['gesturestart', 'gesturechange', 'gestureend'].forEach(eventName => {
+      document.addEventListener(eventName, function (e) {
+        if (isQuestionEditorTarget(e.target)) return;
+        e.preventDefault();
+      }, { passive: false });
+    });
 
     // 綁定所有函式至全域 window，確保所有按鈕點擊順暢執行
     window.startGame = startGame;
